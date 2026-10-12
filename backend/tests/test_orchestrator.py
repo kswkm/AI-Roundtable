@@ -176,7 +176,7 @@ async def test_single_remaining_participant_switches_to_critique_mode(tmp_path):
             1: [op_json("A"), review_json("A"), review_json("A-수정")],
             2: [op_json("B"), DailyQuotaExhausted("day")],
         },
-        [eval_json("progressing"), eval_json("progressing"), critique_json(), eval_json("converged"), final_json()],
+        [eval_json("progressing"), critique_json(), eval_json("converged"), final_json()],
     )
     debate_id = h.create()
 
@@ -193,7 +193,7 @@ async def test_single_participant_debate_uses_judge_as_critic(tmp_path):
     h = Harness(
         tmp_path,
         {1: [op_json("A"), review_json("A2")]},
-        [eval_json("progressing"), critique_json(weaknesses=["근거 부족"]), eval_json("converged"), final_json()],
+        [critique_json(weaknesses=["근거 부족"]), eval_json("converged"), final_json()],
     )
     debate_id = h.create(slot_ids=[1])
 
@@ -201,6 +201,44 @@ async def test_single_participant_debate_uses_judge_as_critic(tmp_path):
 
     assert "근거 부족" in h.fakes[1].prompt(1)
     assert h.detail(debate_id)["status"] == "converged"
+
+
+async def test_single_participant_is_critiqued_before_judge_can_converge(tmp_path):
+    # 판정 AI가 첫 평가에서 converged를 내더라도, 비평 없는 1라운드는 평가하지 않는다.
+    h = Harness(
+        tmp_path,
+        {1: [op_json("A"), review_json("A2")]},
+        [critique_json(weaknesses=["근거 부족"]), eval_json("converged"), final_json()],
+    )
+    debate_id = h.create(slot_ids=[1])
+
+    await h.run(debate_id)
+
+    detail = h.detail(debate_id)
+    assert len(h.fakes[1].calls) >= 2
+    assert "근거 부족" in h.fakes[1].prompt(1)
+    assert detail["status"] == "converged"
+    assert detail["rounds"][0]["judge_eval"] is None
+    assert detail["rounds"][1]["judge_eval"] is not None
+
+
+async def test_provider_unexpected_exception_is_handled_like_provider_error(tmp_path):
+    h = Harness(
+        tmp_path,
+        {
+            1: [op_json("A"), review_json("A"), review_json("A"), review_json("A")],
+            2: [op_json("B")] + [AttributeError("boom")] * 6,
+        },
+        [eval_json("progressing"), eval_json("progressing"), critique_json(), eval_json("converged"), final_json()],
+    )
+    debate_id = h.create()
+
+    await h.run(debate_id)
+
+    detail = h.detail(debate_id)
+    assert detail["status"] == "converged"
+    assert detail["dropouts"][0]["label"] == "B"
+    assert "응답 처리 오류" in detail["rounds"][1]["messages"][1]["error"]
 
 
 async def test_all_participants_exhausted_without_opinions_interrupts(tmp_path):
@@ -240,10 +278,10 @@ async def test_provider_errors_skip_a_round_then_drop_after_two(tmp_path):
     h = Harness(
         tmp_path,
         {
-            1: [op_json("A"), review_json("A"), review_json("A")],
+            1: [op_json("A"), review_json("A"), review_json("A"), review_json("A")],
             2: [op_json("B")] + [ProviderError("HTTP 500")] * 6,
         },
-        [eval_json("progressing"), eval_json("progressing"), eval_json("converged"), final_json()],
+        [eval_json("progressing"), eval_json("progressing"), critique_json(), eval_json("converged"), final_json()],
     )
     debate_id = h.create()
 
@@ -329,10 +367,10 @@ async def test_unexpected_exception_marks_interrupted_and_publishes_error(tmp_pa
     h = Harness(tmp_path, {1: [op_json("A")]}, [])
     debate_id = h.create(slot_ids=[1])
 
-    def explode(_messages):
+    async def explode(*_args, **_kwargs):
         raise RuntimeError("boom")
 
-    h.fakes[JUDGE_SLOT_ID].script = [explode]
+    h.orch._judge = explode  # 호출 계층이 감싸지 않는 예상 밖 오류
 
     await h.run(debate_id)
 
@@ -343,8 +381,8 @@ async def test_unexpected_exception_marks_interrupted_and_publishes_error(tmp_pa
 
 
 async def test_start_and_wait(tmp_path):
-    h = Harness(tmp_path, {1: [op_json("A")]}, [eval_json("converged"), final_json()])
-    debate_id = h.create(slot_ids=[1])
+    h = Harness(tmp_path, {1: [op_json("A")], 2: [op_json("A")]}, [eval_json("converged"), final_json()])
+    debate_id = h.create()
 
     h.orch.start(debate_id)
     assert h.orch.is_running(debate_id)
@@ -355,8 +393,8 @@ async def test_start_and_wait(tmp_path):
 
 
 async def test_double_start_runs_only_once(tmp_path):
-    h = Harness(tmp_path, {1: [op_json("A")]}, [eval_json("converged"), final_json()])
-    debate_id = h.create(slot_ids=[1])
+    h = Harness(tmp_path, {1: [op_json("A")], 2: [op_json("A")]}, [eval_json("converged"), final_json()])
+    debate_id = h.create()
 
     first = h.orch.start(debate_id)
     second = h.orch.start(debate_id)
@@ -399,7 +437,11 @@ async def test_cancel_marks_interrupted_and_publishes_terminal_event(tmp_path):
 async def test_error_event_published_even_if_store_update_fails(tmp_path):
     h = Harness(tmp_path, {1: [op_json("A")]}, [])
     debate_id = h.create(slot_ids=[1])
-    h.fakes[JUDGE_SLOT_ID].script = [lambda _m: (_ for _ in ()).throw(RuntimeError("boom"))]
+
+    async def explode(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    h.orch._judge = explode
     real_update = h.store.update
 
     def update(did, **fields):

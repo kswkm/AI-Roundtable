@@ -93,11 +93,13 @@ class SlotCaller:
                 self._log(slot, debate_id, "credits")
                 self._slots.mark_failure(slot_id, failure)
                 raise
-            except ProviderError:
+            except Exception as failure:  # 응답 처리 중 예상 못한 오류도 ProviderError와 같게 다룬다
                 self._log(slot, debate_id, "error")
                 errors += 1
                 if errors >= MAX_ERROR_ATTEMPTS:
-                    raise
+                    if isinstance(failure, ProviderError):
+                        raise
+                    raise ProviderError(f"응답 처리 오류: {failure}") from failure
                 await self._sleep(BACKOFF_BASE_SECONDS * 2 ** (errors - 1))
                 continue
             self._log(slot, debate_id, "ok", response.input_tokens, response.output_tokens)

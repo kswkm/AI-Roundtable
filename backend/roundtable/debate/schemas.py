@@ -51,6 +51,8 @@ T = TypeVar("T", bound=BaseModel)
 
 def parse_json_model(text: str, model_cls: type[T]) -> T:
     """응답에서 첫 '{'부터 마지막 '}'까지를 JSON으로 읽는다. 코드 펜스나 앞뒤 설명문을 허용한다."""
+    if not isinstance(text, str):
+        text = str(text)
     start, end = text.find("{"), text.rfind("}")
     if start == -1 or end < start:
         raise ValueError("JSON 객체를 찾을 수 없음")

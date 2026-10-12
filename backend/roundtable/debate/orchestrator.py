@@ -234,6 +234,11 @@ class Orchestrator:
             self._store.complete_round(round_id, None)
             return None
 
+        if len(state.active()) == 1 and critique_issues is None:
+            # 비평을 받지 않은 단독 참여자는 수렴 판정 대상이 아니다. 다음 라운드에서 비평을 받는다.
+            self._store.complete_round(round_id, None)
+            return None
+
         current = {p.label: state.latest[p.label] for p in state.active() if p.label in state.latest}
         previous_for_judge = {label: previous[label] for label in current if label in previous} or None
         evaluation, _ = await self._judge(
