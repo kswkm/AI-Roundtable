@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { providerLabel } from "@/lib/format";
 import type { DebateDetail } from "@/lib/types";
 
@@ -10,7 +11,7 @@ export function Banners({ debate }: { debate: DebateDetail }) {
     <div>
       {debate.status === "paused" && (
         <p className="notice notice-warn">
-          일시정지: {debate.pause_reason ?? "사유 없음"}. 설정에서 판정 AI 슬롯을 바꾼 뒤 이어하기를 누르세요.
+          일시정지: {debate.pause_reason ?? "사유 없음"}. <Link href="/settings">설정</Link>에서 판정 AI 슬롯을 바꾼 뒤 이어하기를 누르세요.
         </p>
       )}
       {unfinishedInterrupt && (

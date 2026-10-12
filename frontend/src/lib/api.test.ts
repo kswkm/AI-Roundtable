@@ -50,7 +50,7 @@ describe("api", () => {
     mockFetch(new TypeError("Failed to fetch"));
     const error = await getDebate(1).catch((e: unknown) => e);
     expect((error as ApiError).status).toBe(0);
-    expect(errorMessage(error)).toContain("백엔드 서버에 연결할 수 없습니다");
+    expect(errorMessage(error)).toContain("에 연결할 수 없습니다. 백엔드가 실행 중인지");
   });
 
   it("errorMessage는 알 수 없는 값도 문자열로 만든다", () => {

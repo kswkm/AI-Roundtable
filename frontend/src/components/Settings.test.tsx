@@ -8,6 +8,16 @@ import { StallThresholdForm } from "./StallThresholdForm";
 const providers = ["openai", "anthropic", "gemini", "xai", "openrouter", "groq"];
 
 describe("SlotEditor", () => {
+  it("회사를 바꾸면 기본 키 환경변수 이름도 따라 바뀌고, 직접 입력한 값은 유지한다", async () => {
+    const { unmount } = render(<SlotEditor providers={providers} onSave={vi.fn()} slot={makeSlot()} />);
+    await userEvent.selectOptions(screen.getByLabelText("회사"), "groq");
+    expect(screen.getByLabelText("API 키 환경변수")).toHaveValue("GROQ_API_KEY");
+    unmount();
+    render(<SlotEditor providers={providers} onSave={vi.fn()} slot={makeSlot({ api_key_env: "MY_OPENAI_API_KEY" })} />);
+    await userEvent.selectOptions(screen.getByLabelText("회사"), "groq");
+    expect(screen.getByLabelText("API 키 환경변수")).toHaveValue("MY_OPENAI_API_KEY");
+  });
+
   it("상태, 사유, 해제 예상 시각, 키 연결 여부, 사용량과 추정치를 보여 준다", () => {
     render(
       <SlotEditor

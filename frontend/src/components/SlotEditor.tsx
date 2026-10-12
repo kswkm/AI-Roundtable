@@ -2,7 +2,7 @@
 
 import { type FormEvent, useState } from "react";
 import { errorMessage } from "@/lib/api";
-import { formatDateTime, formatPercent, providerLabel } from "@/lib/format";
+import { defaultKeyEnv, formatDateTime, formatPercent, providerLabel } from "@/lib/format";
 import type { Slot, UpdateSlotInput } from "@/lib/types";
 import { ErrorNotice } from "./ErrorNotice";
 import { SlotBadge } from "./SlotBadge";
@@ -27,6 +27,12 @@ export function SlotEditor({ slot: initial, providers, onSave }: Props) {
 
   const title = slot.kind === "judge" ? "판정 슬롯" : `참여 슬롯 ${slot.id}`;
   const providerOptions = providers.includes(provider) ? providers : [provider, ...providers];
+
+  function handleProviderChange(next: string) {
+    const nextDefault = defaultKeyEnv(next);
+    if (nextDefault && (keyEnv.trim() === "" || keyEnv === defaultKeyEnv(provider))) setKeyEnv(nextDefault);
+    setProvider(next);
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -72,7 +78,7 @@ export function SlotEditor({ slot: initial, providers, onSave }: Props) {
       <form className="stack" onSubmit={handleSubmit}>
         <label>
           <span className="muted">회사</span>
-          <select aria-label="회사" value={provider} onChange={(event) => setProvider(event.target.value)}>
+          <select aria-label="회사" value={provider} onChange={(event) => handleProviderChange(event.target.value)}>
             {providerOptions.map((option) => (
               <option key={option} value={option}>
                 {providerLabel(option)}
@@ -98,7 +104,7 @@ export function SlotEditor({ slot: initial, providers, onSave }: Props) {
             onChange={(event) => setLimit(event.target.value)}
           />
         </label>
-        <p className="muted">회사나 모델을 바꾸면 이 슬롯의 소진 상태가 풀립니다. 키 값은 backend/.env에만 넣으세요.</p>
+        <p className="muted">저장하면 이 슬롯의 소진·속도 제한 상태가 풀립니다. 키 값은 backend/.env에만 넣으세요.</p>
         <ErrorNotice message={error} />
         {saved && (
           <p className="muted" role="status">

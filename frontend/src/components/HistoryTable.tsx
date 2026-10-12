@@ -5,6 +5,7 @@ import type { DebateSummary } from "@/lib/types";
 export function HistoryTable({ debates }: { debates: DebateSummary[] }) {
   if (debates.length === 0) return <p className="muted">아직 토론 기록이 없습니다.</p>;
   return (
+    <div className="table-scroll">
     <table>
       <thead>
         <tr>
@@ -18,7 +19,7 @@ export function HistoryTable({ debates }: { debates: DebateSummary[] }) {
         {debates.map((debate) => (
           <tr key={debate.id}>
             <td className="question-cell">
-              <Link href={`/debates/${debate.id}`}>{debate.question}</Link>
+              <Link href={`/debates/${debate.id}`} className="question-link" title={debate.question}>{debate.question}</Link>
             </td>
             <td>{DEBATE_STATUS_LABEL[debate.status]}</td>
             <td>{debate.grade ? GRADE_LABEL[debate.grade] : "—"}</td>
@@ -27,5 +28,6 @@ export function HistoryTable({ debates }: { debates: DebateSummary[] }) {
         ))}
       </tbody>
     </table>
+    </div>
   );
 }

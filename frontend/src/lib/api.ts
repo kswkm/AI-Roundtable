@@ -9,8 +9,7 @@ export class ApiError extends Error {
   }
 }
 
-const UNREACHABLE =
-  "백엔드 서버에 연결할 수 없습니다. 백엔드가 127.0.0.1:8000에서 실행 중인지 확인하세요.";
+const UNREACHABLE = `백엔드 서버(${API_BASE})에 연결할 수 없습니다. 백엔드가 실행 중인지, 화면을 http://localhost:3000 으로 열었는지 확인하세요.`;
 
 export function errorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;

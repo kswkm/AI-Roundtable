@@ -36,6 +36,19 @@ const PROVIDER_LABEL: Record<string, string> = {
   groq: "Groq",
 };
 
+const DEFAULT_KEY_ENV: Record<string, string> = {
+  openai: "OPENAI_API_KEY",
+  anthropic: "ANTHROPIC_API_KEY",
+  gemini: "GEMINI_API_KEY",
+  xai: "XAI_API_KEY",
+  openrouter: "OPENROUTER_API_KEY",
+  groq: "GROQ_API_KEY",
+};
+
+export function defaultKeyEnv(provider: string): string | undefined {
+  return DEFAULT_KEY_ENV[provider];
+}
+
 export function providerLabel(id: string): string {
   return PROVIDER_LABEL[id] ?? id;
 }

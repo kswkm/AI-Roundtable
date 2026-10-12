@@ -24,6 +24,7 @@ body {
   font-family: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
   line-height: 1.6;
   min-height: 100vh;
+  overflow-wrap: anywhere;
 }
 
 a { color: inherit; }
@@ -95,4 +96,6 @@ details.round summary { cursor: pointer; font-weight: 700; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
 th { color: var(--muted); font-weight: 600; font-size: 14px; }
-.question-cell { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.table-scroll { overflow-x: auto; }
+.question-cell { max-width: 0; width: 60%; }
+.question-link { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

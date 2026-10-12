@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, resumeDebate } from "@/lib/api";
+import { ApiError, resumeDebate, stopDebate } from "@/lib/api";
 import type { DebateDetail } from "@/lib/types";
 import DebatePage from "./page";
 
@@ -44,5 +44,14 @@ describe("DebatePage resume wiring", () => {
     await userEvent.click(screen.getByRole("button", { name: "이어하기" }));
     expect(hooks.reconnect).toHaveBeenCalled();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("중단이 성공하면 중단 요청 안내를 보여 준다", async () => {
+    state.debate = { ...pausedDebate, status: "running", pause_reason: null };
+    vi.mocked(stopDebate).mockResolvedValueOnce(undefined);
+    render(<DebatePage />);
+    await userEvent.click(screen.getByRole("button", { name: "중단" }));
+    expect(await screen.findByText(/중단 요청됨 — 이번 라운드가 끝나면/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "중단" })).not.toBeInTheDocument();
   });
 });

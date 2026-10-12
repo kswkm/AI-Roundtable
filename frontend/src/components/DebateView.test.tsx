@@ -52,7 +52,7 @@ function debate(overrides: Partial<DebateDetail> = {}): DebateDetail {
 describe("ProgressHeader", () => {
   it("진행 상태, 라운드 번호, 최근 판정을 보여 주고 진행 중이면 중단 버튼만 둔다", async () => {
     const onStop = vi.fn();
-    render(<ProgressHeader debate={debate()} live busy={false} onStop={onStop} onResume={vi.fn()} />);
+    render(<ProgressHeader debate={debate()} live busy={false} onStop={onStop} onResume={vi.fn()} stopRequested={false} />);
     expect(screen.getByRole("heading", { name: "자동 배포해도 되나요?" })).toBeInTheDocument();
     expect(screen.getByText("진행 중", { selector: ".badge" })).toBeInTheDocument();
     expect(screen.getByText("라운드 2")).toBeInTheDocument();
@@ -65,16 +65,22 @@ describe("ProgressHeader", () => {
 
   it("일시정지면 이어하기 버튼만 보이고, busy면 비활성화된다", () => {
     const { rerender } = render(
-      <ProgressHeader debate={debate({ status: "paused" })} live={false} busy={false} onStop={vi.fn()} onResume={vi.fn()} />,
+      <ProgressHeader debate={debate({ status: "paused" })} live={false} busy={false} onStop={vi.fn()} onResume={vi.fn()} stopRequested={false} />,
     );
     expect(screen.queryByRole("button", { name: "중단" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "이어하기" })).toBeEnabled();
-    rerender(<ProgressHeader debate={debate({ status: "paused" })} live={false} busy onStop={vi.fn()} onResume={vi.fn()} />);
+    rerender(<ProgressHeader debate={debate({ status: "paused" })} live={false} busy onStop={vi.fn()} onResume={vi.fn()} stopRequested={false} />);
     expect(screen.getByRole("button", { name: "이어하기" })).toBeDisabled();
   });
 
+  it("중단 요청 후에는 중단 버튼 대신 안내 문구를 보여 준다", () => {
+    render(<ProgressHeader debate={debate()} live busy={false} onStop={vi.fn()} onResume={vi.fn()} stopRequested />);
+    expect(screen.getByText("중단 요청됨 — 이번 라운드가 끝나면 지금까지의 의견으로 최종 결과를 만듭니다.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "중단" })).not.toBeInTheDocument();
+  });
+
   it("라운드가 없고 판정도 없으면 라운드 0과 평가 없음을 보여 준다", () => {
-    render(<ProgressHeader debate={debate({ rounds: [] })} live={false} busy={false} onStop={vi.fn()} onResume={vi.fn()} />);
+    render(<ProgressHeader debate={debate({ rounds: [] })} live={false} busy={false} onStop={vi.fn()} onResume={vi.fn()} stopRequested={false} />);
     expect(screen.getByText("라운드 0")).toBeInTheDocument();
     expect(screen.getByText("최근 판정: 평가 없음")).toBeInTheDocument();
   });
@@ -97,6 +103,11 @@ describe("Banners", () => {
         "⚠️ Anthropic (claude-haiku-4-5) — 무료 크레딧 소진: billing. 3라운드부터 토론에서 제외됐어요. 설정에서 다른 모델로 바꿀 수 있어요.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("일시정지 안내에서 설정 화면으로 이동할 수 있다", () => {
+    render(<Banners debate={debate({ status: "paused", pause_reason: "quota" })} />);
+    expect(screen.getByRole("link", { name: "설정" })).toHaveAttribute("href", "/settings");
   });
 
   it("끝나지 않은 중단은 사유와 이어하기 안내를 보여 준다", () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Banners } from "@/components/Banners";
 import { ErrorNotice } from "@/components/ErrorNotice";
 import { FinalResultCard } from "@/components/FinalResultCard";
@@ -15,7 +15,13 @@ export default function DebatePage() {
   const id = Number(params.id);
   const { debate, error, live, refresh, reconnect } = useDebate(id);
   const [busy, setBusy] = useState(false);
+  const [stopRequested, setStopRequested] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const status = debate?.status;
+  useEffect(() => {
+    if (status !== "running") setStopRequested(false);
+  }, [status]);
 
   async function run(action: () => Promise<void>, after: () => void) {
     setBusy(true);
@@ -39,7 +45,13 @@ export default function DebatePage() {
         debate={debate}
         live={live}
         busy={busy}
-        onStop={() => void run(() => stopDebate(id), () => void refresh())}
+        onStop={() =>
+          void run(() => stopDebate(id), () => {
+            setStopRequested(true);
+            void refresh();
+          })
+        }
+        stopRequested={stopRequested}
         onResume={() => void run(() => resumeDebate(id), reconnect)}
       />
       <ErrorNotice message={actionError ?? error} />

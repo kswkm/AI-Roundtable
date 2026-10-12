@@ -20,6 +20,14 @@ describe("HistoryTable", () => {
     expect(screen.getByText(/14:00/)).toBeInTheDocument();
   });
 
+  it("긴 질문은 전체 내용을 title로 남긴다", () => {
+    const question = "가".repeat(300);
+    render(<HistoryTable debates={[{ id: 3, question, status: "running", grade: null, started_at: "2026-10-12T05:00:00Z", ended_at: null }]} />);
+    const link = screen.getByRole("link", { name: question });
+    expect(link).toHaveAttribute("title", question);
+    expect(link).toHaveClass("question-link");
+  });
+
   it("기록이 없으면 안내 문구를 보여 준다", () => {
     render(<HistoryTable debates={[]} />);
     expect(screen.getByText("아직 토론 기록이 없습니다.")).toBeInTheDocument();
