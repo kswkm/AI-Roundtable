@@ -10,7 +10,7 @@
 토론 과정을 구경하는 것보다 **통합된 결론**을 얻는 것이 목적입니다. 다수결로 뭉개지 않고, 실제로 합의되지 않았으면
 `합의` / `조건부·부분 합의` / `미합의`로 솔직하게 표시합니다.
 
-> **상태:** 백엔드 MVP 완성 (FastAPI, 테스트 132개 통과). 프론트엔드(Next.js)는 아직 없습니다.
+> **상태:** MVP 완성 — 백엔드(FastAPI, 테스트 134개)와 프론트엔드(Next.js, 테스트 57개).
 
 ## 어떻게 토론하나요
 
@@ -70,6 +70,12 @@ OpenRouter의 `:free` 모델이나 Groq 같은 무료 대안으로 교체하세�
    uv run uvicorn roundtable.main:app --host 127.0.0.1 --port 8000
    ```
    API 문서: <http://127.0.0.1:8000/docs>
+5. 다른 터미널에서 화면을 띄우고 브라우저로 **http://localhost:3000** 을 엽니다.
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
 
 ## API 한눈에 보기
 
@@ -106,7 +112,9 @@ backend/
     debate/      프롬프트, 응답 형식, 호출·재시도, 토론 진행기, 이벤트 버스
     storage/     SQLite 저장소 (SQLModel)
     api/         FastAPI 라우트, SSE
-  tests/         테스트 132개 (가짜 Provider 사용)
+  tests/         테스트 134개 (가짜 Provider 사용)
+frontend/
+  src/           Next.js 화면(app), 컴포넌트, API 클라이언트·SSE 훅(lib)
 docs/superpowers/
   specs/         설계 문서
   plans/         구현 계획
@@ -118,5 +126,5 @@ docs/superpowers/
 ## 로드맵
 
 - [x] 백엔드 MVP: 토론 진행, 판정, 소진 감지, 일시정지·재개, SSE
-- [ ] 프론트엔드 (Next.js): 질문 입력, 실시간 진행 화면, 최종 결과, 슬롯 설정
+- [x] 프론트엔드 (Next.js): 질문 입력, 실시간 진행 화면, 최종 결과, 슬롯 설정
 - [ ] 공개 서비스 확장: 로그인, 다중 사용자, PostgreSQL
