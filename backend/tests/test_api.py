@@ -266,3 +266,31 @@ async def test_default_allowed_hosts_reject_test_hosts(api):
         assert (await client.get("/debates")).status_code == 400
     async with httpx.AsyncClient(transport=transport, base_url="http://localhost") as client:
         assert (await client.get("/debates")).status_code == 200
+
+
+async def test_cross_site_state_changes_are_rejected(api):
+    async with api.client() as client:
+        evil = {"Origin": "https://evil.example"}
+        assert (await client.post("/debates/1/stop", headers=evil)).status_code == 403
+        assert (await client.post("/debates/1/resume", headers=evil)).status_code == 403
+        assert (await client.put("/config", json={"stall_threshold": 3}, headers=evil)).status_code == 403
+        null_origin = await client.post("/debates/1/stop", headers={"Origin": "null"})
+        assert null_origin.status_code == 403
+        assert "허용되지 않은 출처" in null_origin.json()["detail"]
+        # 읽기 요청은 Origin과 무관하게 허용된다 (CORS가 응답 읽기를 막는다)
+        assert (await client.get("/slots", headers=evil)).status_code == 200
+
+
+async def test_trusted_origins_can_change_state(api):
+    async with api.client() as client:
+        frontend = {"Origin": "http://localhost:3000"}
+        same_origin = {"Origin": "http://test"}  # /docs 화면처럼 서버 자신의 출처
+        assert (await client.put("/config", json={"stall_threshold": 3}, headers=frontend)).status_code == 200
+        assert (await client.put("/config", json={"stall_threshold": 4}, headers=same_origin)).status_code == 200
+        # Origin이 없는 요청(curl 등 브라우저가 아닌 도구)은 허용
+        assert (await client.put("/config", json={"stall_threshold": 2})).status_code == 200
+        preflight = await client.options(
+            "/debates/1/stop",
+            headers={"Origin": "http://localhost:3000", "Access-Control-Request-Method": "POST"},
+        )
+        assert preflight.status_code == 200
