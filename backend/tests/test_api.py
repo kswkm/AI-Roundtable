@@ -186,7 +186,7 @@ async def test_slots_list_and_update(api):
 
         assert (await client.put("/slots/2", json={"provider": "nope", "model": "m", "api_key_env": "X"})).status_code == 422
         assert (await client.put("/slots/2", json={"provider": "openai", "model": "m", "api_key_env": "bad-name"})).status_code == 422
-        assert (await client.put("/slots/9", json={"provider": "openai", "model": "m", "api_key_env": "X"})).status_code == 404
+        assert (await client.put("/slots/9", json={"provider": "openai", "model": "m", "api_key_env": "OPENAI_API_KEY"})).status_code == 404
 
 
 async def test_config_get_and_update_controls_new_debates(api):
@@ -208,3 +208,27 @@ async def test_build_services_marks_running_debates_interrupted(tmp_path):
     debate_id = first.services.store.create_debate("q", [], 2)
     second = Api(tmp_path)  # 같은 DB로 서버 재시작을 흉내 낸다
     assert second.services.store.get(debate_id).status == "interrupted"
+
+
+async def test_validation_errors_are_korean(api):
+    async with api.client() as client:
+        long_q = await client.post("/debates", json={"question": "가" * 4001, "slot_ids": [1]})
+        blank = await client.post("/debates", json={"question": "  ", "slot_ids": [1]})
+        dup = await client.post("/debates", json={"question": "q", "slot_ids": [1, 1]})
+    for response in (long_q, blank, dup):
+        assert response.status_code == 422
+        detail = response.json()["detail"]
+        assert isinstance(detail, str)
+        assert "String should" not in detail and "Value error" not in detail
+    assert "질문을 입력하세요" in blank.json()["detail"]
+    assert "question" in long_q.json()["detail"]
+
+
+async def test_slot_key_env_must_end_with_api_key(api):
+    body = {"provider": "openai", "model": "m"}
+    async with api.client() as client:
+        bad = await client.put("/slots/1", json={**body, "api_key_env": "AWS_SECRET_ACCESS_KEY"})
+        good = await client.put("/slots/1", json={**body, "api_key_env": "MY_OPENAI_API_KEY"})
+    assert bad.status_code == 422
+    assert "api_key_env" in bad.json()["detail"]
+    assert good.status_code == 200

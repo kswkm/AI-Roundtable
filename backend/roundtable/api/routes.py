@@ -50,7 +50,7 @@ class CreateDebateBody(BaseModel):
 class UpdateSlotBody(BaseModel):
     provider: str
     model: str = Field(min_length=1)
-    api_key_env: str = Field(pattern=r"^[A-Z][A-Z0-9_]*$")
+    api_key_env: str = Field(pattern=r"^[A-Z][A-Z0-9_]*_API_KEY$")
     known_limit: dict[str, int] | None = None
 
 
@@ -125,9 +125,9 @@ async def debate_events(debate_id: int, request: Request) -> StreamingResponse:
     services = _services(request)
     if services.store.get(debate_id) is None:
         raise HTTPException(404, "토론을 찾을 수 없습니다")
-    queue = services.bus.subscribe(debate_id)  # 상태 확인 전에 구독해서 이벤트를 놓치지 않는다
 
     async def stream():
+        queue = services.bus.subscribe(debate_id)  # 상태 확인 전에 구독해서 이벤트를 놓치지 않는다
         try:
             debate = services.store.get(debate_id)
             if debate.status != "running":
