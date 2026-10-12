@@ -11,7 +11,10 @@ from roundtable.providers.base import (
     RateLimited,
 )
 from roundtable.slots.service import SlotService
+from sqlmodel import Session, select
+
 from roundtable.storage.db import init_db, make_engine
+from roundtable.storage.models import UsageLog
 from roundtable.usage.recorder import UsageRecorder
 
 MESSAGES = [ChatMessage("user", "q")]
@@ -21,6 +24,7 @@ class Setup:
     def __init__(self, tmp_path, script, environ=None):
         engine = make_engine(f"sqlite:///{tmp_path / 't.db'}")
         init_db(engine)
+        self.engine = engine
         self.slots = SlotService(engine, environ=environ if environ is not None else {"OPENAI_API_KEY": "k"})
         self.slots.seed_defaults()
         self.usage = UsageRecorder(engine)
@@ -133,3 +137,28 @@ async def test_call_json_gives_up_after_second_violation(tmp_path):
     with pytest.raises(ProviderError, match="응답 형식 위반"):
         await s.caller.call_json(1, MESSAGES, Opinion, debate_id=None)
     assert len(s.fake.calls) == 2
+
+
+def recorded_outcomes(s):
+    with Session(s.engine) as session:
+        rows = session.exec(select(UsageLog).order_by(UsageLog.id)).all()
+    return [row.outcome for row in rows]
+
+
+async def test_provider_errors_then_success_record_each_attempt(tmp_path):
+    s = Setup(tmp_path, [ProviderError("500"), ProviderError("500"), "ok"])
+    await s.caller.call(1, MESSAGES, debate_id=None)
+    assert recorded_outcomes(s) == ["error", "error", "ok"]
+
+
+async def test_rate_limit_then_success_records_rate_limited_and_ok(tmp_path):
+    s = Setup(tmp_path, [RateLimited("slow", 1), "ok"])
+    await s.caller.call(1, MESSAGES, debate_id=None)
+    assert recorded_outcomes(s) == ["rate_limited", "ok"]
+
+
+async def test_credits_exhausted_records_single_credits_row(tmp_path):
+    s = Setup(tmp_path, [CreditsExhausted("no credits")])
+    with pytest.raises(CreditsExhausted):
+        await s.caller.call(1, MESSAGES, debate_id=None)
+    assert recorded_outcomes(s) == ["credits"]
