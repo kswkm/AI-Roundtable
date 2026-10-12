@@ -1,0 +1,1 @@
+{"error": {"message": "Rate limit reached for gpt-4o-mini on requests per min (RPM): Limit 3, Used 3, Requested 1.", "type": "requests", "param": null, "code": "rate_limit_exceeded"}}
