@@ -11,8 +11,8 @@ from roundtable.api.routes import router
 from roundtable.api.services import Services
 
 FRONTEND_ORIGINS = ["http://localhost:3000"]
-# DNS rebinding 방지: 로컬 호스트 이름만 허용한다. "test"/"testserver"는 테스트 클라이언트용.
-TRUSTED_HOSTS = ["localhost", "127.0.0.1", "testserver", "test"]
+# DNS rebinding 방지: 기본은 로컬 호스트 이름만 허용한다. 테스트는 allowed_hosts로 직접 넘긴다.
+DEFAULT_ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
 
 
 def _korean_detail(exc: RequestValidationError) -> str:
@@ -27,7 +27,10 @@ def _korean_detail(exc: RequestValidationError) -> str:
 
 
 def create_app(
-    services: Services, *, on_shutdown: Callable[[], Awaitable[None]] | None = None
+    services: Services,
+    *,
+    on_shutdown: Callable[[], Awaitable[None]] | None = None,
+    allowed_hosts: list[str] | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -36,7 +39,7 @@ def create_app(
             await on_shutdown()
 
     app = FastAPI(title="AI-Roundtable", lifespan=lifespan)
-    app.add_middleware(TrustedHostMiddleware, allowed_hosts=TRUSTED_HOSTS)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts or DEFAULT_ALLOWED_HOSTS)
     app.add_middleware(
         CORSMiddleware, allow_origins=FRONTEND_ORIGINS, allow_methods=["*"], allow_headers=["*"]
     )

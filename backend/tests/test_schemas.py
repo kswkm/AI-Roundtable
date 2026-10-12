@@ -46,3 +46,12 @@ def test_judge_eval_and_final_result_reject_unknown_values():
         parse_json_model('{"status": "done"}', JudgeEval)
     with pytest.raises(ValueError):
         parse_json_model('{"final_opinion": "x", "grade": "majority", "key_reasons": []}', FinalResult)
+
+
+def test_parse_json_model_non_str_input_is_value_error():
+    import pytest
+
+    from roundtable.debate.schemas import Opinion, parse_json_model
+
+    with pytest.raises(ValueError):
+        parse_json_model(["not", "text"], Opinion)

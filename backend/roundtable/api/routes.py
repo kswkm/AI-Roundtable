@@ -22,7 +22,7 @@ def _services(request: Request) -> Services:
 
 
 def _iso(value: datetime | None) -> str | None:
-    return value.isoformat() if value is not None else None
+    return value.isoformat() + "Z" if value is not None else None
 
 
 class CreateDebateBody(BaseModel):

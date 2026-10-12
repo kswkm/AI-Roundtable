@@ -60,7 +60,7 @@ def test_rate_limited_auto_releases(tmp_path):
     service, clock = make(tmp_path)
     service.mark_failure(1, RateLimited("slow", 30))
     slot = service.get(1)
-    assert (slot.status, slot.status_until, slot.status_reason) == ("rate_limited", START + timedelta(seconds=30), "slow")
+    assert (slot.status, slot.status_until, slot.status_reason) == ("rate_limited", START + timedelta(seconds=30), "요청 한도 초과: slow")
     assert service.is_usable(1) is True  # 속도 제한은 기다리면 되므로 사용 가능
     clock.advance(seconds=31)
     assert service.get(1).status == "available"
@@ -87,7 +87,7 @@ def test_credits_exhausted_never_auto_releases(tmp_path):
     service.mark_failure(1, CreditsExhausted("no credits"))
     clock.advance(days=30)
     slot = service.list()[0]
-    assert (slot.status, slot.status_until, slot.status_reason) == ("exhausted", None, "no credits")
+    assert (slot.status, slot.status_until, slot.status_reason) == ("exhausted", None, "무료 크레딧 소진: no credits")
 
 
 def test_provider_error_does_not_change_status(tmp_path):
@@ -135,7 +135,7 @@ def test_rate_limited_does_not_overwrite_credits_exhausted(tmp_path):
     service.mark_failure(1, RateLimited("slow", 30))
     clock.advance(days=30)
     slot = service.get(1)
-    assert (slot.status, slot.status_until, slot.status_reason) == ("exhausted", None, "no credits")
+    assert (slot.status, slot.status_until, slot.status_reason) == ("exhausted", None, "무료 크레딧 소진: no credits")
 
 
 def test_rate_limited_does_not_shorten_daily_quota_window(tmp_path):
@@ -144,4 +144,4 @@ def test_rate_limited_does_not_shorten_daily_quota_window(tmp_path):
     service.mark_failure(1, DailyQuotaExhausted("day", reset_at=reset_at))
     service.mark_failure(1, RateLimited("slow", 30))
     slot = service.get(1)
-    assert (slot.status, slot.status_until, slot.status_reason) == ("exhausted", reset_at, "day")
+    assert (slot.status, slot.status_until, slot.status_reason) == ("exhausted", reset_at, "일일 한도 소진: day")

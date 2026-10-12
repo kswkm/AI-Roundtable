@@ -88,7 +88,7 @@ async def test_credits_exhausted_marks_slot_and_raises(tmp_path):
     with pytest.raises(CreditsExhausted):
         await s.caller.call(1, MESSAGES, debate_id=None)
     slot = s.slots.get(1)
-    assert (slot.status, slot.status_reason) == ("exhausted", "no credits")
+    assert (slot.status, slot.status_reason) == ("exhausted", "무료 크레딧 소진: no credits")
     assert s.sleeps == []
 
 
@@ -105,7 +105,7 @@ async def test_exhausted_slot_is_unavailable_without_calling(tmp_path):
     with pytest.raises(SlotUnavailable) as info:
         await s.caller.call(1, MESSAGES, debate_id=None)
     assert info.value.slot_id == 1
-    assert info.value.reason == "no credits"
+    assert info.value.reason == "무료 크레딧 소진: no credits"
     assert s.fake.calls == []
 
 

@@ -7,7 +7,7 @@ from fakes import ALL_KEYS, ScriptedProvider, eval_json, final_json, no_sleep, o
 from roundtable.api.app import create_app
 from roundtable.api.services import build_services
 from roundtable.debate.orchestrator import build_participants
-from roundtable.providers.base import CreditsExhausted
+from roundtable.providers.base import CreditsExhausted, RateLimited
 from roundtable.slots.service import JUDGE_SLOT_ID
 
 
@@ -20,7 +20,7 @@ class Api:
             provider_factory=lambda slot, key: self.fakes[slot.id],
             sleep=no_sleep,
         )
-        self.app = create_app(self.services)
+        self.app = create_app(self.services, allowed_hosts=["test"])
 
     def client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(transport=httpx.ASGITransport(app=self.app), base_url="http://test")
@@ -100,8 +100,8 @@ async def test_get_unknown_debate_is_404(api):
 
 async def test_sse_streams_events_in_order(api):
     services = api.services
-    debate_id = services.store.create_debate("질문", build_participants([services.slots.get(1)]), 2)
-    api.fakes.update({1: ScriptedProvider([op_json("찬성합니다")]),
+    debate_id = services.store.create_debate("질문", build_participants([services.slots.get(1), services.slots.get(2)]), 2)
+    api.fakes.update({1: ScriptedProvider([op_json("찬성합니다")]), 2: ScriptedProvider([op_json("찬성합니다")]),
                       JUDGE_SLOT_ID: ScriptedProvider([eval_json("converged"), final_json()])})
     async with api.client() as client:
         request = asyncio.create_task(client.get(f"/debates/{debate_id}/events"))
@@ -114,7 +114,7 @@ async def test_sse_streams_events_in_order(api):
 
     assert response.headers["content-type"].startswith("text/event-stream")
     types = [line.removeprefix("event: ") for line in response.text.splitlines() if line.startswith("event: ")]
-    assert types == ["round_started", "message", "judge_evaluated", "finished"]
+    assert types == ["round_started", "message", "message", "judge_evaluated", "finished"]
     assert "찬성합니다" in response.text  # 한국어가 이스케이프되지 않음
     assert services.bus.subscriber_count(debate_id) == 0
 
@@ -144,9 +144,9 @@ async def test_stop_requires_running_debate(api, monkeypatch):
 
 async def test_resume_paused_debate(api):
     services = api.services
-    debate_id = services.store.create_debate("q", build_participants([services.slots.get(1)]), 2)
+    debate_id = services.store.create_debate("q", build_participants([services.slots.get(1), services.slots.get(2)]), 2)
     services.store.update(debate_id, status="paused", pause_reason="판정 AI 무료 크레딧 소진")
-    api.fakes.update({1: ScriptedProvider([op_json("A")]),
+    api.fakes.update({1: ScriptedProvider([op_json("A")]), 2: ScriptedProvider([op_json("A")]),
                       JUDGE_SLOT_ID: ScriptedProvider([eval_json("converged"), final_json()])})
     async with api.client() as client:
         response = await client.post(f"/debates/{debate_id}/resume")
@@ -241,3 +241,28 @@ async def test_rejects_untrusted_host_header(api):
 
     assert rebound.status_code == 400
     assert normal.status_code == 200
+
+
+async def test_timestamps_are_utc_with_z_suffix(api):
+    api.fakes.update({1: ScriptedProvider([op_json("찬성")]), 2: ScriptedProvider([op_json("찬성")]),
+                      JUDGE_SLOT_ID: ScriptedProvider([eval_json("converged"), final_json()])})
+    api.services.slots.mark_failure(3, CreditsExhausted("x"))
+    api.services.slots.mark_failure(4, RateLimited("slow", 30))
+    async with api.client() as client:
+        debate_id = (await client.post("/debates", json={"question": "q", "slot_ids": [1, 2]})).json()["id"]
+        await api.services.orchestrator.wait(debate_id)
+        detail = (await client.get(f"/debates/{debate_id}")).json()
+        slots = (await client.get("/slots")).json()
+
+    assert detail["started_at"].endswith("Z")
+    assert detail["rounds"][0]["completed_at"].endswith("Z")
+    assert next(s for s in slots if s["id"] == 4)["status_until"].endswith("Z")
+
+
+async def test_default_allowed_hosts_reject_test_hosts(api):
+    app = create_app(api.services)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        assert (await client.get("/debates")).status_code == 400
+    async with httpx.AsyncClient(transport=transport, base_url="http://localhost") as client:
+        assert (await client.get("/debates")).status_code == 200

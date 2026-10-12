@@ -95,12 +95,15 @@ class SlotService:
         now = self._now()
         if isinstance(failure, RateLimited):
             status = "rate_limited"
+            prefix = "요청 한도 초과"
             until = now + timedelta(seconds=failure.retry_after or DEFAULT_RATE_LIMIT_WAIT)
         elif isinstance(failure, DailyQuotaExhausted):
             status = "exhausted"
+            prefix = "일일 한도 소진"
             until = failure.reset_at or now + timedelta(days=1)
         elif isinstance(failure, CreditsExhausted):
             status = "exhausted"
+            prefix = "무료 크레딧 소진"
             until = None
         else:
             return
@@ -111,7 +114,7 @@ class SlotService:
                 return
             slot.status = status
             slot.status_until = until
-            slot.status_reason = failure.message or type(failure).__name__
+            slot.status_reason = f"{prefix}: {failure.message or type(failure).__name__}"
             session.add(slot)
             session.commit()
 
