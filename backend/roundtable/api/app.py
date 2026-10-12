@@ -5,11 +5,14 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 from roundtable.api.routes import router
 from roundtable.api.services import Services
 
 FRONTEND_ORIGINS = ["http://localhost:3000"]
+# DNS rebinding 방지: 로컬 호스트 이름만 허용한다. "test"/"testserver"는 테스트 클라이언트용.
+TRUSTED_HOSTS = ["localhost", "127.0.0.1", "testserver", "test"]
 
 
 def _korean_detail(exc: RequestValidationError) -> str:
@@ -33,6 +36,7 @@ def create_app(
             await on_shutdown()
 
     app = FastAPI(title="AI-Roundtable", lifespan=lifespan)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=TRUSTED_HOSTS)
     app.add_middleware(
         CORSMiddleware, allow_origins=FRONTEND_ORIGINS, allow_methods=["*"], allow_headers=["*"]
     )

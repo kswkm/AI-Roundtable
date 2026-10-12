@@ -232,3 +232,12 @@ async def test_slot_key_env_must_end_with_api_key(api):
     assert bad.status_code == 422
     assert "api_key_env" in bad.json()["detail"]
     assert good.status_code == 200
+
+
+async def test_rejects_untrusted_host_header(api):
+    async with api.client() as client:
+        rebound = await client.get("/slots", headers={"Host": "evil.example"})
+        normal = await client.get("/slots")
+
+    assert rebound.status_code == 400
+    assert normal.status_code == 200

@@ -31,6 +31,9 @@ async def run_smoke(slots: SlotService, provider_factory: ProviderFactory) -> li
         except ProviderFailure as failure:
             lines.append(f"{label}: 실패 — {type(failure).__name__}: {failure.message}")
             continue
+        except Exception as failure:  # 한 슬롯의 예기치 않은 오류가 나머지 슬롯을 막지 않도록
+            lines.append(f"{label}: 실패 — {type(failure).__name__}: {failure}")
+            continue
         lines.append(
             f"{label}: 성공 — {response.text.strip()[:60]} "
             f"(입력 {response.input_tokens} / 출력 {response.output_tokens} 토큰)"
