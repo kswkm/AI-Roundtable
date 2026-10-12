@@ -15,14 +15,15 @@ function describeLabel(label: string, participants: Participant[]): string {
 function List({ items }: { items: string[] }) {
   return (
     <ul>
-      {items.map((item) => (
-        <li key={item}>{item}</li>
+      {items.map((item, index) => (
+        <li key={`${index}-${item}`}>{item}</li>
       ))}
     </ul>
   );
 }
 
 export function FinalResultCard({ result, grade, participants }: Props) {
+  const dropouts = result.dropouts ?? [];
   return (
     <section className="panel final-card stack" aria-label="최종 통합 의견">
       <div className="row">
@@ -54,11 +55,11 @@ export function FinalResultCard({ result, grade, participants }: Props) {
       )}
       <div>
         <strong>제외된 AI</strong>
-        {result.dropouts.length === 0 ? (
+        {dropouts.length === 0 ? (
           <p className="muted">제외된 AI 없음</p>
         ) : (
           <List
-            items={result.dropouts.map(
+            items={dropouts.map(
               (dropout) =>
                 `참여자 ${dropout.label} · ${providerLabel(dropout.provider)} (${dropout.model}) — ${dropout.round}라운드, ${dropout.reason}`,
             )}

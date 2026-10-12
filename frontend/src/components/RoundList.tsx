@@ -1,6 +1,11 @@
 import { JUDGE_STATUS_LABEL, formatPercent, providerLabel } from "@/lib/format";
 import type { Message, Participant, Round } from "@/lib/types";
 
+function roundJudgeLabel(round: Round): string {
+  if (round.judge_eval) return JUDGE_STATUS_LABEL[round.judge_eval.status];
+  return round.completed_at === null ? "진행 중…" : "평가 없음";
+}
+
 function MessageView({ message }: { message: Message }) {
   const header = `참여자 ${message.label} · ${providerLabel(message.provider)} (${message.model})`;
   if (message.content === null) {
@@ -18,8 +23,8 @@ function MessageView({ message }: { message: Message }) {
       <p>{opinion.position}</p>
       {opinion.reasons.length > 0 && (
         <ul>
-          {opinion.reasons.map((reason) => (
-            <li key={reason}>{reason}</li>
+          {opinion.reasons.map((reason, index) => (
+            <li key={`${index}-${reason}`}>{reason}</li>
           ))}
         </ul>
       )}
@@ -40,7 +45,7 @@ export function RoundList({ rounds }: { rounds: Round[]; participants: Participa
       {rounds.map((round) => (
         <details key={round.number} className="round">
           <summary>
-            {round.number}라운드 · 판정: {round.judge_eval ? JUDGE_STATUS_LABEL[round.judge_eval.status] : "평가 없음"}
+            {round.number}라운드 · 판정: {roundJudgeLabel(round)}
           </summary>
           {round.messages.map((message, index) => (
             <MessageView key={`${message.label}-${index}`} message={message} />
@@ -50,8 +55,8 @@ export function RoundList({ rounds }: { rounds: Round[]; participants: Participa
               <strong>판정 AI</strong>
               {round.judge_eval.issues.length > 0 && (
                 <ul>
-                  {round.judge_eval.issues.map((issue) => (
-                    <li key={issue}>{issue}</li>
+                  {round.judge_eval.issues.map((issue, index) => (
+                    <li key={`${index}-${issue}`}>{issue}</li>
                   ))}
                 </ul>
               )}

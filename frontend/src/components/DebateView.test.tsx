@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { DebateDetail, Participant } from "@/lib/types";
+import type { DebateDetail, FinalResult, Participant } from "@/lib/types";
 import { Banners } from "./Banners";
 import { FinalResultCard } from "./FinalResultCard";
 import { ProgressHeader } from "./ProgressHeader";
@@ -169,5 +169,54 @@ describe("RoundList", () => {
   it("라운드가 없으면 안내 문구를 보여 준다", () => {
     render(<RoundList rounds={[]} participants={participants} />);
     expect(screen.getByText("아직 완료된 발언이 없습니다.")).toBeInTheDocument();
+  });
+
+  it("완료되지 않은 라운드는 평가 없음 대신 진행 중으로 보여 준다", () => {
+    render(
+      <RoundList
+        rounds={[{ number: 3, judge_eval: null, completed_at: null, messages: [] }]}
+        participants={participants}
+      />,
+    );
+    expect(screen.getByText("3라운드 · 판정: 진행 중…")).toBeInTheDocument();
+  });
+
+  it("같은 문구의 근거가 두 번 와도 둘 다 보여 주고 key 경고가 없다", () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const rounds = debate().rounds;
+    rounds[0].messages[0].content = {
+      position: "중복 근거", reasons: ["같은 근거", "같은 근거"], conditions: [], confidence: 0.5,
+    };
+    render(<RoundList rounds={rounds} participants={participants} />);
+    expect(screen.getAllByText("같은 근거")).toHaveLength(2);
+    expect(consoleError.mock.calls.some((args) => String(args[0]).includes("same key"))).toBe(false);
+  });
+});
+
+describe("FinalResultCard extras", () => {
+  it("합의가 아닌 미합의 결과는 미합의 배지만 보여 준다", () => {
+    render(<FinalResultCard grade="no_consensus" participants={participants} result={{ dropouts: [], end_reason: "정체" }} />);
+    expect(screen.getByText("미합의", { selector: ".badge" })).toBeInTheDocument();
+    expect(screen.queryByText("합의", { selector: ".badge" })).not.toBeInTheDocument();
+  });
+
+  it("중복된 핵심 근거도 모두 보여 주고 key 경고가 없다", () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(
+      <FinalResultCard
+        grade="consensus"
+        participants={participants}
+        result={{ key_reasons: ["같은 근거", "같은 근거"], dropouts: [], end_reason: "수렴" }}
+      />,
+    );
+    expect(screen.getAllByText("같은 근거")).toHaveLength(2);
+    expect(consoleError.mock.calls.some((args) => String(args[0]).includes("same key"))).toBe(false);
+  });
+
+  it("dropouts가 없는 결과도 깨지지 않고 제외된 AI 없음을 보여 준다", () => {
+    render(
+      <FinalResultCard grade={null} participants={participants} result={{ end_reason: "수렴" } as FinalResult} />,
+    );
+    expect(screen.getByText("제외된 AI 없음")).toBeInTheDocument();
   });
 });
