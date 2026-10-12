@@ -4,7 +4,7 @@ import { canResume, formatDateTime, formatPercent, providerLabel, slotUnavailabl
 
 describe("format", () => {
   it("UTC Z 시간을 서울 시간으로 표시한다", () => {
-    expect(formatDateTime("2026-10-12T05:00:00Z")).toContain("오후 2:00");
+    expect(formatDateTime("2026-10-12T05:00:00Z")).toContain("14:00");
   });
 
   it("빈 값이나 잘못된 시간은 대시로 표시한다", () => {

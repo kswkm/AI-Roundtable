@@ -40,14 +40,12 @@ export function providerLabel(id: string): string {
   return PROVIDER_LABEL[id] ?? id;
 }
 
-const DATE_TIME = new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" });
+const DATE_TIME = new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short", hourCycle: "h23" });
 
 export function formatDateTime(iso: string | null): string {
   if (!iso) return "—";
   const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "—";
-  // 일부 런타임(Node ICU)은 ko-KR에서도 AM/PM으로 찍으므로 한국어 표기로 맞춘다.
-  return DATE_TIME.format(date).replace(/\bAM\b/, "오전").replace(/\bPM\b/, "오후");
+  return Number.isNaN(date.getTime()) ? "—" : DATE_TIME.format(date);
 }
 
 export function formatPercent(ratio: number | null): string {
