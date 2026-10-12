@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { errorMessage, eventsUrl, getDebate } from "./api";
 import type { DebateDetail } from "./types";
 
@@ -27,17 +27,26 @@ export function useDebate(id: number, { createEventSource = browserEventSource, 
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState(false);
   const [generation, setGeneration] = useState(0);
+  const latestRequest = useRef(0);
 
   const refresh = useCallback(async (): Promise<DebateDetail | null> => {
+    const request = ++latestRequest.current;
     try {
       const next = await getDebate(id);
-      setDebate(next);
-      setError(null);
+      if (request === latestRequest.current) {
+        setDebate(next);
+        setError(null);
+      }
       return next;
     } catch (caught) {
-      setError(errorMessage(caught));
+      if (request === latestRequest.current) setError(errorMessage(caught));
       return null;
     }
+  }, [id]);
+
+  useEffect(() => {
+    setDebate(null);
+    setError(null);
   }, [id]);
 
   useEffect(() => {
@@ -51,15 +60,27 @@ export function useDebate(id: number, { createEventSource = browserEventSource, 
       setLive(false);
     };
 
-    const connect = async () => {
+    const scheduleRetry = () => {
+      clearTimeout(retry);
+      if (!disposed) retry = setTimeout(() => void connect(true), reconnectMs);
+    };
+
+    const connect = async (isRetry = false) => {
       const current = await refresh();
-      if (disposed || current === null || current.status !== "running") return;
+      if (disposed) return;
+      if (current === null) {
+        if (isRetry) scheduleRetry();
+        return;
+      }
+      if (current.status !== "running") return;
       const opened = createEventSource(eventsUrl(id));
       source = opened;
       setLive(true);
       for (const type of DEBATE_EVENT_TYPES) {
-        opened.addEventListener(type, () => {
+        opened.addEventListener(type, (event) => {
           if (source !== opened) return;
+          // A native connection failure arrives as a plain Event; onerror handles it.
+          if (type === "error" && !(event instanceof MessageEvent)) return;
           if (TERMINAL_EVENT_TYPES.includes(type)) close();
           void refresh();
         });
@@ -67,13 +88,14 @@ export function useDebate(id: number, { createEventSource = browserEventSource, 
       opened.onerror = () => {
         if (source !== opened) return;
         close();
-        if (!disposed) retry = setTimeout(() => void connect(), reconnectMs);
+        scheduleRetry();
       };
     };
 
     void connect();
     return () => {
       disposed = true;
+      latestRequest.current++;
       clearTimeout(retry);
       close();
     };

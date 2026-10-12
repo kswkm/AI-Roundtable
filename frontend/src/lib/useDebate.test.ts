@@ -24,6 +24,9 @@ class FakeSource implements EventSourceLike {
   close() {
     this.closed = true;
   }
+  dispatch(type: string, event: Event) {
+    for (const listener of this.listeners.get(type) ?? []) listener(event as MessageEvent);
+  }
   emit(type: string) {
     for (const listener of this.listeners.get(type) ?? []) listener(new MessageEvent(type, { data: "{}" }));
   }
@@ -102,5 +105,67 @@ describe("useDebate", () => {
     await waitFor(() => expect(FakeSource.created).toHaveLength(1));
     unmount();
     expect(FakeSource.created[0].closed).toBe(true);
+  });
+
+  it("네이티브 연결 오류(일반 Event)는 종료로 보지 않고 재연결한다", async () => {
+    getDebate.mockResolvedValue(detail("running"));
+    renderHook(() => useDebate(1, { createEventSource, reconnectMs: 10 }));
+    await waitFor(() => expect(FakeSource.created).toHaveLength(1));
+    const first = FakeSource.created[0];
+    act(() => {
+      first.dispatch("error", new Event("error"));
+      first.onerror?.(new Event("error"));
+    });
+    expect(first.closed).toBe(true);
+    await waitFor(() => expect(FakeSource.created).toHaveLength(2));
+  });
+
+  it("백엔드가 보낸 error 이벤트는 종료이며 재연결하지 않는다", async () => {
+    getDebate.mockResolvedValue(detail("running"));
+    renderHook(() => useDebate(1, { createEventSource, reconnectMs: 10 }));
+    await waitFor(() => expect(FakeSource.created).toHaveLength(1));
+    const first = FakeSource.created[0];
+    act(() => first.emit("error"));
+    expect(first.closed).toBe(true);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    });
+    expect(FakeSource.created).toHaveLength(1);
+  });
+
+  it("재연결 시 백엔드가 아직 내려가 있으면 다시 시도한다", async () => {
+    getDebate.mockResolvedValueOnce(detail("running"));
+    renderHook(() => useDebate(1, { createEventSource, reconnectMs: 10 }));
+    await waitFor(() => expect(FakeSource.created).toHaveLength(1));
+    getDebate.mockRejectedValueOnce(new api.ApiError(503, "서버에 연결할 수 없습니다"));
+    getDebate.mockResolvedValue(detail("running"));
+    act(() => FakeSource.created[0].onerror?.(new Event("error")));
+    await waitFor(() => expect(FakeSource.created).toHaveLength(2));
+    expect(getDebate).toHaveBeenCalledTimes(3);
+  });
+
+  it("먼저 보낸 요청이 늦게 도착해도 최신 결과를 유지한다", async () => {
+    getDebate.mockResolvedValueOnce(detail("paused"));
+    const { result } = renderHook(() => useDebate(1, { createEventSource }));
+    await waitFor(() => expect(result.current.debate?.status).toBe("paused"));
+    let resolveOld!: (value: DebateDetail) => void;
+    let resolveNew!: (value: DebateDetail) => void;
+    getDebate.mockReturnValueOnce(new Promise((resolve) => (resolveOld = resolve)));
+    getDebate.mockReturnValueOnce(new Promise((resolve) => (resolveNew = resolve)));
+    let older!: Promise<unknown>;
+    let newer!: Promise<unknown>;
+    act(() => {
+      older = result.current.refresh();
+      newer = result.current.refresh();
+    });
+    await act(async () => {
+      resolveNew(detail("converged"));
+      await newer;
+    });
+    await act(async () => {
+      resolveOld(detail("stopped"));
+      await older;
+    });
+    expect(result.current.debate?.status).toBe("converged");
   });
 });
