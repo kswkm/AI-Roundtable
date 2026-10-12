@@ -352,3 +352,69 @@ async def test_start_and_wait(tmp_path):
 
     assert not h.orch.is_running(debate_id)
     assert h.store.get(debate_id).status == "converged"
+
+
+async def test_double_start_runs_only_once(tmp_path):
+    h = Harness(tmp_path, {1: [op_json("A")]}, [eval_json("converged"), final_json()])
+    debate_id = h.create(slot_ids=[1])
+
+    first = h.orch.start(debate_id)
+    second = h.orch.start(debate_id)
+    assert first is second
+    await h.orch.wait(debate_id)
+
+    assert not h.orch.is_running(debate_id)
+    assert len(h.fakes[1].calls) == 1
+
+
+async def test_cancel_marks_interrupted_and_publishes_terminal_event(tmp_path):
+    import asyncio
+
+    h = Harness(tmp_path, {1: [op_json("A")]}, [])
+    debate_id = h.create(slot_ids=[1])
+    gate = asyncio.Event()
+
+    class Hanging:
+        async def complete(self, messages, response_schema=None):
+            await gate.wait()
+
+    h.fakes[1] = Hanging()
+    queue = h.bus.subscribe(debate_id)
+    task = h.orch.start(debate_id)
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+    assert h.store.get(debate_id).status == "interrupted"
+    types = []
+    while not queue.empty():
+        types.append(queue.get_nowait().type)
+    assert types[-1] == "error"
+
+
+async def test_error_event_published_even_if_store_update_fails(tmp_path):
+    h = Harness(tmp_path, {1: [op_json("A")]}, [])
+    debate_id = h.create(slot_ids=[1])
+    h.fakes[JUDGE_SLOT_ID].script = [lambda _m: (_ for _ in ()).throw(RuntimeError("boom"))]
+    real_update = h.store.update
+
+    def update(did, **fields):
+        if fields.get("status") == "interrupted":
+            raise OSError("db down")
+        return real_update(did, **fields)
+
+    h.store.update = update
+    queue = h.bus.subscribe(debate_id)
+    try:
+        await h.orch.run(debate_id)
+    except OSError:
+        pass
+    events = []
+    while not queue.empty():
+        events.append(queue.get_nowait())
+    assert events[-1].type == "error"
+    assert "내부 오류" in events[-1].data["message"]

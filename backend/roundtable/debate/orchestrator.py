@@ -101,9 +101,17 @@ class Orchestrator:
     # ---- 실행 관리 ----
 
     def start(self, debate_id: int) -> asyncio.Task:
+        existing = self._tasks.get(debate_id)
+        if existing is not None and not existing.done():
+            return existing
         task = asyncio.create_task(self.run(debate_id))
         self._tasks[debate_id] = task
-        task.add_done_callback(lambda _task: self._tasks.pop(debate_id, None))
+
+        def _cleanup(done: asyncio.Task) -> None:
+            if self._tasks.get(debate_id) is done:
+                del self._tasks[debate_id]
+
+        task.add_done_callback(_cleanup)
         return task
 
     async def wait(self, debate_id: int) -> None:
@@ -121,9 +129,17 @@ class Orchestrator:
     async def run(self, debate_id: int) -> None:
         try:
             await self._run(debate_id)
+        except asyncio.CancelledError:
+            try:
+                self._store.update(debate_id, status="interrupted", pause_reason="내부 오류: 실행이 취소됨")
+            finally:
+                self._bus.publish(debate_id, "error", {"message": "내부 오류: 실행이 취소됨"})
+            raise
         except Exception as exc:  # 예상하지 못한 오류도 토론 상태에 남긴다
-            self._store.update(debate_id, status="interrupted", pause_reason=f"내부 오류: {exc}")
-            self._bus.publish(debate_id, "error", {"message": str(exc)})
+            try:
+                self._store.update(debate_id, status="interrupted", pause_reason=f"내부 오류: {exc}")
+            finally:
+                self._bus.publish(debate_id, "error", {"message": f"내부 오류: {exc}"})
         finally:
             self._stop_requested.discard(debate_id)
 
