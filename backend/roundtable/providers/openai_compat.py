@@ -53,11 +53,11 @@ class OpenAICompatProvider:
             data = response.json()
             text = data["choices"][0]["message"]["content"] or ""
             usage = data.get("usage") or {}
+            input_tokens = int(usage.get("prompt_tokens", 0))
+            output_tokens = int(usage.get("completion_tokens", 0))
         except (ValueError, KeyError, IndexError, TypeError) as exc:
             raise ProviderError("응답 형식을 해석할 수 없음") from exc
-        return ProviderResponse(
-            text, int(usage.get("prompt_tokens", 0)), int(usage.get("completion_tokens", 0))
-        )
+        return ProviderResponse(text, input_tokens, output_tokens)
 
 
 def classify_openai_error(response: httpx.Response) -> ProviderFailure:

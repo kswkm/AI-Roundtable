@@ -85,3 +85,11 @@ async def test_malformed_success_is_provider_error():
     async with mock_client(200, {"choices": []}) as client:
         with pytest.raises(ProviderError, match="해석할 수 없음"):
             await make(client).complete(MESSAGES)
+
+
+async def test_malformed_usage_is_provider_error():
+    for usage in ({"prompt_tokens": None, "completion_tokens": 3}, {"prompt_tokens": 1, "completion_tokens": "many"}):
+        payload = {"choices": [{"message": {"content": "ok"}}], "usage": usage}
+        async with mock_client(200, payload) as client:
+            with pytest.raises(ProviderError, match="해석할 수 없음"):
+                await make(client).complete(MESSAGES)
