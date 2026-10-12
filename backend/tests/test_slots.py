@@ -119,3 +119,29 @@ def test_update_resets_status_and_validates_provider(tmp_path):
         service.update(2, provider="nope", model="m", api_key_env="X")
     with pytest.raises(KeyError):
         service.update(9, provider="openai", model="m", api_key_env="X")
+
+
+def test_mark_failure_and_mark_ok_unknown_slot_raises_key_error(tmp_path):
+    service, _ = make(tmp_path)
+    with pytest.raises(KeyError):
+        service.mark_failure(9, RateLimited("slow"))
+    with pytest.raises(KeyError):
+        service.mark_ok(9)
+
+
+def test_rate_limited_does_not_overwrite_credits_exhausted(tmp_path):
+    service, clock = make(tmp_path)
+    service.mark_failure(1, CreditsExhausted("no credits"))
+    service.mark_failure(1, RateLimited("slow", 30))
+    clock.advance(days=30)
+    slot = service.get(1)
+    assert (slot.status, slot.status_until, slot.status_reason) == ("exhausted", None, "no credits")
+
+
+def test_rate_limited_does_not_shorten_daily_quota_window(tmp_path):
+    service, clock = make(tmp_path)
+    reset_at = START + timedelta(hours=5)
+    service.mark_failure(1, DailyQuotaExhausted("day", reset_at=reset_at))
+    service.mark_failure(1, RateLimited("slow", 30))
+    slot = service.get(1)
+    assert (slot.status, slot.status_until, slot.status_reason) == ("exhausted", reset_at, "day")

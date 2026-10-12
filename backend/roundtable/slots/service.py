@@ -59,12 +59,16 @@ class SlotService:
 
     def get(self, slot_id: int) -> Slot:
         with self._session() as session:
-            slot = session.get(Slot, slot_id)
-            if slot is None:
-                raise KeyError(slot_id)
-            self._refresh(session, slot)
+            slot = self._load(session, slot_id)
             session.commit()
             return slot
+
+    def _load(self, session: Session, slot_id: int) -> Slot:
+        slot = session.get(Slot, slot_id)
+        if slot is None:
+            raise KeyError(slot_id)
+        self._refresh(session, slot)
+        return slot
 
     def _refresh(self, session: Session, slot: Slot) -> None:
         if (
@@ -101,7 +105,10 @@ class SlotService:
         else:
             return
         with self._session() as session:
-            slot = session.get(Slot, slot_id)
+            slot = self._load(session, slot_id)
+            if isinstance(failure, RateLimited) and slot.status == "exhausted":
+                session.commit()
+                return
             slot.status = status
             slot.status_until = until
             slot.status_reason = failure.message or type(failure).__name__
@@ -110,7 +117,7 @@ class SlotService:
 
     def mark_ok(self, slot_id: int) -> None:
         with self._session() as session:
-            slot = session.get(Slot, slot_id)
+            slot = self._load(session, slot_id)
             if slot.status == "rate_limited":
                 slot.status = "available"
                 slot.status_until = None
@@ -130,9 +137,7 @@ class SlotService:
         if provider not in PROVIDER_IDS:
             raise ValueError(f"알 수 없는 제공 회사: {provider}")
         with self._session() as session:
-            slot = session.get(Slot, slot_id)
-            if slot is None:
-                raise KeyError(slot_id)
+            slot = self._load(session, slot_id)
             slot.provider = provider
             slot.model = model
             slot.api_key_env = api_key_env
